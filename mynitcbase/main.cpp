@@ -26,6 +26,15 @@ int main(int argc, char *argv[]) {
   memcpy(message2, buffer2 + 20, 7);
   std::cout << message2;
 
+  unsigned char mapBuf[BLOCK_SIZE];
+  char Bmap[BLOCK_SIZE];
+  Disk::readBlock(mapBuf, 0);
+  
+  for(int i = 0; i < BLOCK_SIZE; i++){
+    std::cout<< static_cast<int>(mapBuf[i])<< " ";
+  }
+  std::cout<<'\n';
+
   // return FrontendInterface::handleFrontend(argc, argv);
   return 0;
 }

@@ -12,28 +12,42 @@ int main(int argc, char *argv[]) {
   // StaticBuffer buffer;
   // OpenRelTable cache;
 
-  // Test writing into the disk
-  unsigned char buffer[BLOCK_SIZE];
-  Disk::readBlock(buffer, 7000);
-  char message[] = "hello\n";
-  memcpy(buffer + 20, message, 7);
-  Disk::writeBlock(buffer, 7000);
+  // create objects for the relation catalog and attribute catalog
+  RecBuffer relCatBuffer(RELCAT_BLOCK);
+  RecBuffer attrCatBuffer(ATTRCAT_BLOCK);
 
-  // Test reading the changes from the disk
-  unsigned char buffer2[BLOCK_SIZE];
-  char message2[7];
-  Disk::readBlock(buffer2, 7000);
-  memcpy(message2, buffer2 + 20, 7);
-  std::cout << message2;
+  // Declare Header buffers for relation catalog and attribute catalog
+  HeadInfo relCatHeader;
+  HeadInfo attrCatHeader;
 
-  unsigned char mapBuf[BLOCK_SIZE];
-  char Bmap[BLOCK_SIZE];
-  Disk::readBlock(mapBuf, 0);
-  
-  for(int i = 0; i < BLOCK_SIZE; i++){
-    std::cout<< static_cast<int>(mapBuf[i])<< " ";
+  // load the headers of both the blocks into relCatHeader and attrCatHeader.
+  relCatBuffer.getHeader(&relCatHeader);
+  attrCatBuffer.getHeader(&attrCatHeader);
+
+  // Loop through all the relation catalog records
+  for (int i = 0; i < relCatHeader.numEntries; i++) {
+
+    // Declare relCatRecord and load the ith relation catalog record into it
+    Attribute relCatRecord[RELCAT_NO_ATTRS];
+    relCatBuffer.getRecord(relCatRecord, i);
+
+    printf("Relation: %s\n", relCatRecord[RELCAT_REL_NAME_INDEX].sVal);
+
+    // Loop through all the attribute catalog records
+    for (int j = 0; j < attrCatHeader.numEntries; j++) {
+
+      // Declare attrCatRecord and load the jth attribute catalog entry into it
+      Attribute attrCatRecord[ATTRCAT_NO_ATTRS];
+      attrCatBuffer.getRecord(attrCatRecord, j);
+
+      // Only print the attribute catalog entry that corresponds to the current relation
+      if (strcmp(attrCatRecord[ATTRCAT_REL_NAME_INDEX].sVal, relCatRecord[RELCAT_REL_NAME_INDEX].sVal) == 0) {
+        const char *attrType = attrCatRecord[ATTRCAT_ATTR_TYPE_INDEX].nVal == NUMBER ? "NUM" : "STR";
+        printf("  %s: %s\n", attrCatRecord[ATTRCAT_ATTR_NAME_INDEX].sVal, attrType);
+      }
+    }
+    printf("\n");
   }
-  std::cout<<'\n';
 
   // return FrontendInterface::handleFrontend(argc, argv);
   return 0;

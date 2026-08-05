@@ -41,6 +41,13 @@ int main(int argc, char *argv[]) {
         // Declare attrCatRecord and load the jth attribute catalog entry into it
         Attribute attrCatRecord[ATTRCAT_NO_ATTRS];
         attrCatBuffer.getRecord(attrCatRecord, j);
+
+        // Update the Student relation
+        if(strcmp(attrCatRecord[ATTRCAT_REL_NAME_INDEX].sVal, "Students") == 0 && 
+          strcmp(attrCatRecord[ATTRCAT_ATTR_NAME_INDEX].sVal, "Class") == 0) {
+          
+          strcpy(attrCatRecord[ATTRCAT_ATTR_NAME_INDEX].sVal, "Batch");
+        }
   
         // Only print the attribute catalog entry that corresponds to the current relation
         if (strcmp(attrCatRecord[ATTRCAT_REL_NAME_INDEX].sVal, relCatRecord[RELCAT_REL_NAME_INDEX].sVal) == 0) {

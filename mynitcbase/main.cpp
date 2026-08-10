@@ -9,7 +9,7 @@
 int main(int argc, char *argv[]) {
   /* Initialize the Run Copy of Disk */
   Disk disk_run;
-  // StaticBuffer buffer;
+  StaticBuffer buffer;
   // OpenRelTable cache;
 
   // Create relation catalog object and load its header into relCatHeader

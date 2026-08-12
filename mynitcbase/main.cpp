@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
   OpenRelTable cache;
 
 
-  for(int relId = 0; relId < 2; relId++){ // rel-id 0 (relation catalog) & 1 (attribute catalog)
+  for(int relId = 0; relId < 3; relId++){ // rel-id 0 (relation catalog) & 1 (attribute catalog)
     // Get relation catalog entry from relation cache table
     RelCatEntry relCatEntry;
     RelCacheTable::getRelCatEntry(relId, &relCatEntry);

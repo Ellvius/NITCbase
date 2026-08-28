@@ -24,4 +24,7 @@ class Algebra {
                   char attrOne[ATTR_SIZE], char attrTwo[ATTR_SIZE]);
 };
 
+// helper function to check if the attribute is a number
+bool isNumber(char *str);
+
 #endif  // NITCBASE_ALGEBRA_H

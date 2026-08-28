@@ -3,6 +3,22 @@
 #include <cstdlib>
 #include <cstring>
 
+// Helper function to compare the attributes with attribute Tyep
+int compareAttrs(Attribute attr1, Attribute attr2, int attrType){
+
+  if(attrType == NUMBER){
+    if (attr1.nVal < attr2.nVal)
+      return -1;
+    if (attr1.nVal > attr2.nVal)
+      return 1;
+    return 0;
+  }
+
+  else {
+    return strcmp(attr1.sVal, attr2.sVal);
+  }
+}
+
 BlockBuffer::BlockBuffer(int blockNum) {
   // initialise this.blockNum with the argument
   this->blockNum = blockNum;
@@ -31,6 +47,30 @@ int BlockBuffer::getHeader(struct HeadInfo *head) {
 
   return SUCCESS;
 }
+
+
+int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
+
+  // check if the block is already in the buffer
+  int bufferNum = StaticBuffer::getBufferNum(this->blockNum);
+
+  // load the block from disk into the buffer
+  if (bufferNum == E_BLOCKNOTINBUFFER){
+    bufferNum = StaticBuffer::getFreeBuffer(this->blockNum);
+
+    if (bufferNum == E_OUTOFBOUND){
+      return E_OUTOFBOUND;
+    }
+
+    Disk::readBlock(StaticBuffer::blocks[bufferNum], this->blockNum);
+  }
+
+  // return a pointer to the buffer
+  *buffPtr = StaticBuffer::blocks[bufferNum];
+
+  return SUCCESS;
+}
+
 
 // load the record at slotNum into the argument pointer
 int RecBuffer::getRecord(union Attribute *rec, int slotNum) {
@@ -62,23 +102,28 @@ int RecBuffer::getRecord(union Attribute *rec, int slotNum) {
   return SUCCESS;
 }
 
-int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
-  // check whether the block is already present in the buffer using StaticBuffer
-  int bufferNum = StaticBuffer::getBufferNum(this->blockNum);
 
-  if(bufferNum == E_BLOCKNOTINBUFFER){
-    bufferNum = StaticBuffer::getFreeBuffer(this->blockNum);
+/* used to get the slotmap from a record block
+NOTE: this function expects the caller to allocate memory for `*slotMap`
+*/
+int RecBuffer::getSlotMap(unsigned char *slotMap){
+  unsigned char *bufferPtr;
 
-    // check whether the block is within bounds
-    if(bufferNum == E_OUTOFBOUND){
-      return E_OUTOFBOUND;
-    }
-
-    Disk::readBlock(StaticBuffer::blocks[bufferNum], this->blockNum);
+  // load the block into the buffer
+  int ret = loadBlockAndGetBufferPtr(&bufferPtr);
+  if (ret != SUCCESS){
+    return ret;
   }
 
-  // store the pointer to this buffer (blocks[bufferNum]) in *buffPtr
-  *buffPtr = StaticBuffer::blocks[bufferNum];
+  // get block header
+  struct HeadInfo head;
+  this->getHeader(&head);
+
+  // copy slotmap to output buffer
+  int slotCount = head.numSlots;
+  unsigned char *slotMapInBuffer = bufferPtr + HEADER_SIZE;
+
+  memcpy(slotMap, slotMapInBuffer, slotCount);
 
   return SUCCESS;
 }

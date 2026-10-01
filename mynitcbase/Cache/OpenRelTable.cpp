@@ -169,7 +169,7 @@ int OpenRelTable::getFreeOpenRelTableEntry(){
 int OpenRelTable::getRelId(char relName[ATTR_SIZE]){
   // search tableMetaInfo for relid of relation relName
   for (int relid = 0; relid < MAX_OPEN; relid++){
-    if (strcmp(OpenRelTable::tableMetaInfo[relid].relName, relName) == 0)
+    if (!tableMetaInfo[relid].free && strcmp(OpenRelTable::tableMetaInfo[relid].relName, relName) == 0)
       return relid;
   }
 

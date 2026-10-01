@@ -19,17 +19,21 @@ int compareAttrs(Attribute attr1, Attribute attr2, int attrType){
   }
 }
 
+
+
 BlockBuffer::BlockBuffer(int blockNum) {
   // initialise this.blockNum with the argument
   this->blockNum = blockNum;
 }
 
+
+
 // calls the parent class constructor
 RecBuffer::RecBuffer(int blockNum) : BlockBuffer::BlockBuffer(blockNum) {}
 
-// load the block header into the argument pointer
+
+
 int BlockBuffer::getHeader(struct HeadInfo *head) {
-  
   unsigned char *bufferPtr;
   int ret = loadBlockAndGetBufferPtr(&bufferPtr);
 
@@ -49,20 +53,25 @@ int BlockBuffer::getHeader(struct HeadInfo *head) {
 }
 
 
-int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
 
-  // check if the block is already in the buffer
+int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
   int bufferNum = StaticBuffer::getBufferNum(this->blockNum);
 
-  // load the block from disk into the buffer
-  if (bufferNum == E_BLOCKNOTINBUFFER){
+  if(bufferNum == E_BLOCKNOTINBUFFER){
     bufferNum = StaticBuffer::getFreeBuffer(this->blockNum);
-
-    if (bufferNum == E_OUTOFBOUND){
+  
+    if (bufferNum == E_OUTOFBOUND)
       return E_OUTOFBOUND;
+  
+    Disk::readBlock(StaticBuffer::blocks[bufferNum], this->blockNum);
+  }
+  else {
+    for (int bufIndex = 0; bufIndex < BUFFER_CAPACITY; bufIndex++){
+      if (!StaticBuffer::metainfo[bufIndex].free)
+        StaticBuffer::metainfo[bufIndex].timeStamp++;
     }
 
-    Disk::readBlock(StaticBuffer::blocks[bufferNum], this->blockNum);
+    StaticBuffer::metainfo[bufferNum].timeStamp = 0;
   }
 
   // return a pointer to the buffer
@@ -72,7 +81,7 @@ int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
 }
 
 
-// load the record at slotNum into the argument pointer
+
 int RecBuffer::getRecord(union Attribute *rec, int slotNum) {
   struct HeadInfo head;
   
@@ -103,9 +112,39 @@ int RecBuffer::getRecord(union Attribute *rec, int slotNum) {
 }
 
 
-/* used to get the slotmap from a record block
-NOTE: this function expects the caller to allocate memory for `*slotMap`
-*/
+
+int RecBuffer::setRecord(union Attribute *rec, int slotNum){
+  unsigned char *bufferPtr;
+
+  // get starting address of buffer containing the block
+  int ret = loadBlockAndGetBufferPtr(&bufferPtr);
+
+  if(ret != SUCCESS)
+    return ret;
+
+  struct HeadInfo head;
+  this->getHeader(&head);
+
+  int numAttrs = head.numAttrs;
+  int numSlots = head.numSlots;
+
+  // check the slotNum range
+  if(slotNum < 0 || slotNum >= numSlots)
+    return E_OUTOFBOUND;
+
+  // offset the ptr to the beginning of the required record
+  int recordSize = numAttrs * ATTR_SIZE;
+  unsigned char * recordPtr = bufferPtr + HEADER_SIZE + numSlots + (recordSize * slotNum);
+
+  // copy the record to buffer
+  memcpy(recordPtr, rec, recordSize);
+  StaticBuffer::setDirtyBit(this->blockNum);
+
+  return SUCCESS;
+}
+
+
+
 int RecBuffer::getSlotMap(unsigned char *slotMap){
   unsigned char *bufferPtr;
 

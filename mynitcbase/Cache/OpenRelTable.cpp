@@ -276,6 +276,17 @@ int OpenRelTable::closeRel(int relId){
   if (OpenRelTable::tableMetaInfo[relId].free)
     return E_RELNOTOPEN;
 
+  // if relation cache entry has been modified
+  if(RelCacheTable::relCache[relId]->dirty){
+    Attribute relCatRecord[RELCAT_NO_ATTRS];
+    RecId recId = RelCacheTable::relCache[relId]->recId;
+
+    RelCacheTable::relCatEntryToRecord(&RelCacheTable::relCache[relId]->relCatEntry, relCatRecord);
+
+    RecBuffer relCatBlock(recId.block);
+    relCatBlock.setRecord(relCatRecord, recId.slot);
+  }
+
   // free allocated memory in relation cache
   free(RelCacheTable::relCache[relId]);
 

@@ -1,10 +1,21 @@
 #include "StaticBuffer.h"
+#include <cstring>
 
 unsigned char StaticBuffer::blocks[BUFFER_CAPACITY][BLOCK_SIZE];
 struct BufferMetaInfo StaticBuffer::metainfo[BUFFER_CAPACITY];
 
+unsigned char StaticBuffer::blockAllocMap[DISK_BLOCKS];
+
 
 StaticBuffer::StaticBuffer(){
+  // copy Block allocation map to buffer
+  for(int i = 0; i < 4; i++){
+    unsigned char buffer[BLOCK_SIZE];
+
+    Disk::readBlock(buffer, i);
+    memcpy(blockAllocMap + i*BLOCK_SIZE, buffer, BLOCK_SIZE);
+  }
+
   for(int bufIndex = 0; bufIndex < BUFFER_CAPACITY; bufIndex++){
     metainfo[bufIndex].free = true;
     metainfo[bufIndex].dirty = false;
@@ -16,6 +27,14 @@ StaticBuffer::StaticBuffer(){
 
 
 StaticBuffer::~StaticBuffer(){
+  // write back block allocation map to disk
+  for(int i = 0; i < 4; i++){
+    unsigned char buffer[BLOCK_SIZE];
+
+    memcpy(buffer, blockAllocMap + i*BLOCK_SIZE, BLOCK_SIZE);
+    Disk::writeBlock(buffer, i);
+  }
+  
   // write back the modified buffers
   for(int bufIndex = 0; bufIndex < BUFFER_CAPACITY; bufIndex++){
     if(!metainfo[bufIndex].free && metainfo[bufIndex].dirty)

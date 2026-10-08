@@ -3,6 +3,54 @@
 #include <cstring>
 #include <iostream>
 
+
+// Performs validation checks for the records to be inserted
+int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE]){
+  // operation not allowed for relation & attribute catalog
+  if(strcmp(relName, RELCAT_RELNAME) == 0 || strcmp(relName, ATTRCAT_RELNAME)== 0)
+    return E_NOTPERMITTED;
+
+  int relId = OpenRelTable::getRelId(relName);
+
+  if(relId == E_RELNOTOPEN)
+    return E_RELNOTOPEN;
+
+  RelCatEntry relCatEntry;
+  RelCacheTable::getRelCatEntry(relId, &relCatEntry);
+
+  // check whether the number of attributes match
+  if(relCatEntry.numAttrs != nAttrs)
+    return E_NATTRMISMATCH;
+
+  // let recordValues[numberOfAttributes] be an array of type union Attribute
+  Attribute recordValues[nAttrs];
+
+  // Iterate through the attribute cat entries to check attribute type
+  // assign values to a record buffer
+  for(int i = 0; i < nAttrs; i++)  {
+    AttrCatEntry attrCatEntry;
+    AttrCacheTable::getAttrCatEntry(relId, i, &attrCatEntry);
+
+    int type = attrCatEntry.attrType;
+
+    if (type == NUMBER){
+      if(isNumber(record[i]))
+           recordValues[i].nVal = atof(record[i]);
+      else 
+        return E_ATTRTYPEMISMATCH;
+    }
+    else if (type == STRING){
+      strcpy(recordValues[i].sVal, record[i]);
+    }
+  }
+
+  // insert the record buffer into the relation
+  return BlockAccess::insert(relId, recordValues);
+}
+
+
+
+
 /* used to select all the records that satisfy a condition.
 the arguments of the function are
 - srcRel - the source relation we want to select from

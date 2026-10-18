@@ -41,7 +41,7 @@ OpenRelTable::OpenRelTable(){
 
   RelCacheEntry attrCatRelCacheEntry;
   RelCacheTable::recordToRelCatEntry(attrCatRelRecord, &attrCatRelCacheEntry.relCatEntry);
-  attrCatRelCacheEntry.recId.block = ATTRCAT_BLOCK;
+  attrCatRelCacheEntry.recId.block = RELCAT_BLOCK;
   attrCatRelCacheEntry.recId.slot = RELCAT_SLOTNUM_FOR_ATTRCAT;
 
   // set the value at RelCacheTable::relCache[ATTRCAT_RELID]
@@ -131,9 +131,7 @@ OpenRelTable::~OpenRelTable(){
     }
   }
 
-  // Free relation cache entries for relation catalog & attribute catalog
-
-  // if changes made in attrcat, write back to relcat block
+  // Write back ATTRCAT's relation metadata if modified
   if (RelCacheTable::relCache[ATTRCAT_RELID]->dirty){
     RelCatEntry relCatEntry;
     RelCacheTable::getRelCatEntry(ATTRCAT_RELID, &relCatEntry);
@@ -143,14 +141,10 @@ OpenRelTable::~OpenRelTable(){
 
     RecId recId = RelCacheTable::relCache[ATTRCAT_RELID]->recId;
     RecBuffer relCatBlock(recId.block);
-
     relCatBlock.setRecord(record, recId.slot);
   }
-  // free the memory dynamically allocated to this RelCacheEntry
-  free(RelCacheTable::relCache[RELCAT_RELID]);
 
-
-  // if changes made in relcat, write back to relcat Block
+  // Write back RELCAT's relation metadata if modified
   if (RelCacheTable::relCache[RELCAT_RELID]->dirty){
     RelCatEntry relCatEntry;
     RelCacheTable::getRelCatEntry(RELCAT_RELID, &relCatEntry);
@@ -158,18 +152,17 @@ OpenRelTable::~OpenRelTable(){
     Attribute record[RELCAT_NO_ATTRS];
     RelCacheTable::relCatEntryToRecord(&relCatEntry, record);
 
-    RecId recId = RelCacheTable::relCache[ATTRCAT_RELID]->recId;
+    RecId recId = RelCacheTable::relCache[RELCAT_RELID]->recId;
     RecBuffer relCatBlock(recId.block);
-
     relCatBlock.setRecord(record, recId.slot);
   }
-  // free the memory dynamically allocated for this RelCacheEntry
+  
+  // Free relation cache entries
   free(RelCacheTable::relCache[ATTRCAT_RELID]);
-
+  free(RelCacheTable::relCache[RELCAT_RELID]);
 
   // Free attribute cache entries for relation catalog
   AttrCacheEntry *current = AttrCacheTable::attrCache[RELCAT_RELID];
-
   while(current != nullptr){
     AttrCacheEntry *next = current->next;
     free(current);
@@ -178,14 +171,18 @@ OpenRelTable::~OpenRelTable(){
 
   // Free attribute cache entries for attribute catalog
   current = AttrCacheTable::attrCache[ATTRCAT_RELID];
-
   while(current != nullptr){
     AttrCacheEntry* next = current->next;
     free(current);
     current = next;
   }
-}
 
+  // Clear the cache pointers
+  RelCacheTable::relCache[RELCAT_RELID] = nullptr;
+  RelCacheTable::relCache[ATTRCAT_RELID] = nullptr;
+  AttrCacheTable::attrCache[RELCAT_RELID] = nullptr;
+  AttrCacheTable::attrCache[ATTRCAT_RELID] = nullptr;
+}
 
 int OpenRelTable::getFreeOpenRelTableEntry(){
   // find free open relation table entry from tableMetaInfo

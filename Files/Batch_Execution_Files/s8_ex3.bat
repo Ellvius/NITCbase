@@ -1,0 +1,8 @@
+create table Stores(name STR);
+create table People(name NUM, name STR);
+open table Products 
+open table Stores 
+drop table Stores 
+drop table RELATIONCAT 
+close table Stores 
+drop table Stores

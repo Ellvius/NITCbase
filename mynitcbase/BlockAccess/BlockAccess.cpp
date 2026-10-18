@@ -96,6 +96,22 @@ RecId BlockAccess::linearSearch(int relId, char attrName[ATTR_SIZE], union Attri
 
 
 
+int BlockAccess::search(int relId, Attribute *record, char attrName[ATTR_SIZE], Attribute attrVal, int op){
+  // search for the record id using linear search
+  RecId recId = linearSearch(relId, attrName, attrVal, op);
+
+  if (recId.block == -1 && recId.slot == -1)
+    return E_NOTFOUND;
+
+  // copy the record to the record buffer
+  RecBuffer searchBlock(recId.block);
+  searchBlock.getRecord(record, recId.slot);
+
+  return SUCCESS;
+}
+
+
+
 int BlockAccess::insert(int relId, Attribute *record){
   RelCatEntry relCatEntry;
   RelCacheTable::getRelCatEntry(relId, &relCatEntry);
@@ -324,6 +340,156 @@ int BlockAccess::renameAttribute(char relName[ATTR_SIZE],
 
   strcpy(attrCatRecord[ATTRCAT_ATTR_NAME_INDEX].sVal, newName);
   attrcatBuffer.setRecord(attrCatRecord, attrToRenameRecId.slot);
+
+  return SUCCESS;
+}
+
+
+
+int BlockAccess::deleteRelation(char relName[ATTR_SIZE]){
+  // deletion of relation & attribute catalogy not permitted
+  if(strcmp(relName, RELCAT_RELNAME) == 0 || strcmp(relName, ATTRCAT_RELNAME) == 0)
+    return E_NOTPERMITTED;
+
+  // get the relation catalog entry of the relation to be deleted
+  RelCacheTable::resetSearchIndex(RELCAT_RELID);
+
+  Attribute relNameAttr; 
+  strcpy(relNameAttr.sVal, relName);
+
+  RecId searchRes = linearSearch(RELCAT_RELID, (char *)RELCAT_ATTR_RELNAME, relNameAttr, EQ);
+
+  if(searchRes.block == -1 && searchRes.slot == -1)
+    return E_RELNOTEXIST;
+
+  Attribute relCatEntryRecord[RELCAT_NO_ATTRS];
+  RecBuffer relCatBlock(searchRes.block);
+  relCatBlock.getRecord(relCatEntryRecord, searchRes.slot);
+
+  // get the first block & number of attributes from relation catalog record of the relation
+  int blockNum = relCatEntryRecord[RELCAT_FIRST_BLOCK_INDEX].nVal;
+  int numAttrs = relCatEntryRecord[RELCAT_NO_ATTRIBUTES_INDEX].nVal;
+
+  // iterate through the linked list of blocks and
+  // Release all the blocks assigned to the relation
+  while(blockNum != -1){
+    RecBuffer curBlock(blockNum);
+
+    HeadInfo header;
+    curBlock.getHeader(&header);
+
+    int nextBlock = header.rblock;
+    curBlock.releaseBlock();
+
+    blockNum = nextBlock;
+  }
+
+  // Delete attribute catalog entries of the relation
+
+  // reset the searchIndex of the attribute catalog
+  RelCacheTable::resetSearchIndex(ATTRCAT_RELID);
+
+  int numberOfAttributesDeleted = 0;
+
+  // delete the attribute catalog entries till no more entries are found
+  while (true){
+    RecId attrCatRecId = linearSearch(ATTRCAT_RELID, (char *)ATTRCAT_ATTR_RELNAME, relNameAttr, EQ);
+
+    if(attrCatRecId.block == -1 && attrCatRecId.slot == -1)
+      break;
+
+    numberOfAttributesDeleted++;
+
+    // get the record
+    RecBuffer attrCatBlock(attrCatRecId.block);
+
+    HeadInfo curHeader;
+    attrCatBlock.getHeader(&curHeader);
+
+    Attribute attrCatEntryRecord[ATTRCAT_NO_ATTRS];
+    attrCatBlock.getRecord(attrCatEntryRecord, attrCatRecId.slot);
+
+    // get rootblock, later used to delete indexes
+    int rootBlock = attrCatEntryRecord[ATTRCAT_ROOT_BLOCK_INDEX].nVal;
+
+    // update slotmap in the block header
+    unsigned char slotMap[curHeader.numSlots];
+    attrCatBlock.getSlotMap(slotMap);
+
+    slotMap[attrCatRecId.slot] = SLOT_UNOCCUPIED;
+    attrCatBlock.setSlotMap(slotMap);
+
+    // update number of entries in the block header
+    curHeader.numEntries--;
+    attrCatBlock.setHeader(&curHeader);
+
+    // if number of entries becomes 0
+    // fix the linked list and release the block
+    if (curHeader.numEntries == 0){
+      // set the right block of the left block 
+      // to the right block of current block
+      RecBuffer leftBlock(curHeader.lblock);
+
+      HeadInfo leftHeader;
+      leftBlock.getHeader(&leftHeader);
+
+      leftHeader.rblock = curHeader.rblock;
+      leftBlock.setHeader(&leftHeader);
+
+      // if current block is the last block
+      // update the last block in the relation catalog
+      if ( curHeader.rblock == -1){
+        relCatEntryRecord[RELCAT_LAST_BLOCK_INDEX].nVal = curHeader.lblock;
+      }
+      else {
+        // set the left block of the right block
+        // to the left block of the current block
+        RecBuffer rightBlock(curHeader.rblock);
+
+        HeadInfo rightHeader;
+        rightBlock.getHeader(&rightHeader);
+
+        rightHeader.lblock = curHeader.lblock;
+        rightBlock.setHeader(&rightHeader);
+      }
+
+      // since attribute catalog will never be empty - because of relcat & attrcat entries
+      // we can safely release the current block
+      attrCatBlock.releaseBlock();
+    }
+
+    // index deletion code to be written here
+  }
+
+  // Delete the relation catalog entry of the record
+  HeadInfo relCatHeader;
+  relCatBlock.getHeader(&relCatHeader);
+  
+  // update slotmap in relation catalog header
+  unsigned char slotMap[relCatHeader.numSlots];
+  relCatBlock.getSlotMap(slotMap);
+  
+  slotMap[searchRes.slot] = SLOT_UNOCCUPIED;
+  relCatBlock.setSlotMap(slotMap);
+  
+  // decrement number of entries in relation catalog header
+  relCatHeader.numEntries--;
+  relCatBlock.setHeader(&relCatHeader);
+
+  // Update the relation cache entries of relation & attribute catalogs
+  // decrease number of records in relation catalog by 1
+  RelCatEntry relCatEntry;
+  RelCacheTable::getRelCatEntry(RELCAT_RELID, &relCatEntry);
+
+  relCatEntry.numRecs--;
+  RelCacheTable::setRelCatEntry(RELCAT_RELID, &relCatEntry);
+
+  // decrease number of records in attribute catalog by numberOfAttributesDeleted
+  RelCatEntry attrCatEntry;
+  RelCacheTable::getRelCatEntry(ATTRCAT_RELID, &attrCatEntry);
+
+  attrCatEntry.numRecs = attrCatEntry.numRecs - numberOfAttributesDeleted;
+  RelCacheTable::setRelCatEntry(ATTRCAT_RELID, &attrCatEntry);
 
   return SUCCESS;
 }

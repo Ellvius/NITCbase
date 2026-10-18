@@ -99,6 +99,25 @@ int BlockBuffer::setHeader(struct HeadInfo *head){
 
 
 
+void BlockBuffer::releaseBlock(){
+  // check if block is already released
+  int blockNum = this->blockNum;
+  if(blockNum < 0 || blockNum >= DISK_BLOCKS || blockNum == INVALID_BLOCKNUM)
+    return;
+
+  int bufferNum = StaticBuffer::getBufferNum(blockNum);
+
+  // if block is present in the buffer, free it
+  if(bufferNum != E_BLOCKNOTINBUFFER)
+    StaticBuffer::metainfo[bufferNum].free = true;
+    
+  // update block allocation map
+  StaticBuffer::blockAllocMap[blockNum] = UNUSED_BLK;
+  this->blockNum = INVALID_BLOCKNUM;
+}
+
+
+
 int BlockBuffer::loadBlockAndGetBufferPtr(unsigned char **buffPtr){
   int bufferNum = StaticBuffer::getBufferNum(this->blockNum);
 

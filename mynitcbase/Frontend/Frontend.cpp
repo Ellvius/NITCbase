@@ -44,26 +44,42 @@ int Frontend::insert_into_table_values(char relname[ATTR_SIZE], int attr_count, 
 }
 
 int Frontend::select_from_table(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE]) {
-  // Algebra::project
-  return SUCCESS;
+  return Algebra::project(relname_source, relname_target);
 }
 
 int Frontend::select_attrlist_from_table(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                          int attr_count, char attr_list[][ATTR_SIZE]) {
-  // Algebra::project
-  return SUCCESS;
+  return Algebra::project(relname_source, relname_target, attr_count, attr_list);
 }
 
 int Frontend::select_from_table_where(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                       char attribute[ATTR_SIZE], int op, char value[ATTR_SIZE]) {
-  // Algebra::select
   return Algebra::select(relname_source, relname_target, attribute, op, value);
 }
 
 int Frontend::select_attrlist_from_table_where(char relname_source[ATTR_SIZE], char relname_target[ATTR_SIZE],
                                                int attr_count, char attr_list[][ATTR_SIZE],
                                                char attribute[ATTR_SIZE], int op, char value[ATTR_SIZE]) {
-  // Algebra::select + Algebra::project??
+  // select the records satisfying the condition into TEMP relation
+  int ret = Algebra::select(relname_source, (char *)TEMP, attribute, op, value);
+  if(ret != SUCCESS)
+    return ret;
+  
+  // open TEMP
+  int tempRelId = OpenRelTable::openRel((char *)TEMP);
+  if(tempRelId < 0 || tempRelId >= MAX_OPEN){
+    Schema::deleteRel((char *)TEMP);
+    return tempRelId;
+  }
+
+  // project the TEMP relation into target relation with only required attributes
+  ret = Algebra::project((char *)TEMP, relname_target, attr_count, attr_list);
+  if(ret != SUCCESS)
+    return ret;
+
+  // close and delete the TEMP relation
+  OpenRelTable::closeRel(tempRelId);
+  Schema::deleteRel((char *)TEMP);
   return SUCCESS;
 }
 

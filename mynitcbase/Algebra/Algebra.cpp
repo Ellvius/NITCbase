@@ -4,7 +4,6 @@
 #include <iostream>
 
 
-// Performs validation checks for the records to be inserted
 int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE]){
   // operation not allowed for relation & attribute catalog
   if(strcmp(relName, RELCAT_RELNAME) == 0 || strcmp(relName, ATTRCAT_RELNAME)== 0)
@@ -50,120 +49,233 @@ int Algebra::insert(char relName[ATTR_SIZE], int nAttrs, char record[][ATTR_SIZE
 
 
 
-
-/* used to select all the records that satisfy a condition.
-the arguments of the function are
-- srcRel - the source relation we want to select from
-- targetRel - the relation we want to select into. (ignore for now)
-- attr - the attribute that the condition is checking
-- op - the operator of the condition
-- strVal - the value that we want to compare against (represented as a string)
-*/
 int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr[ATTR_SIZE], int op, char strVal[ATTR_SIZE]){
-
-  int srcRelId = OpenRelTable::getRelId(srcRel); // will be properly implemented in later stages
-
-  if (srcRelId == E_RELNOTOPEN){
+  // check if source relation is open
+  int srcRelid = OpenRelTable::getRelId(srcRel);
+  if(srcRelid == E_RELNOTOPEN)
     return E_RELNOTOPEN;
-  }
 
-  // get the attribute catalog entry for attr
+  // check whether the given attribute exists
   AttrCatEntry attrCatEntry;
-  if (AttrCacheTable::getAttrCatEntry(srcRelId, attr, &attrCatEntry) != SUCCESS){
+  int ret = AttrCacheTable::getAttrCatEntry(srcRelid, attr, &attrCatEntry);
+  if(ret == E_ATTRNOTEXIST)
     return E_ATTRNOTEXIST;
-  }
 
-  // convert strVal (string) to an attribute of data type NUMBER or STRING
-  int type = attrCatEntry.attrType;
+  // convert strVal to Attribute of appropriate type
   Attribute attrVal;
+  int type = attrCatEntry.attrType;
 
   if (type == NUMBER){
-    if (isNumber(strVal)){ 
+    if(isNumber(strVal))
       attrVal.nVal = atof(strVal);
-    }
-    else{
+    else
       return E_ATTRTYPEMISMATCH;
-    }
   }
-  else if (type == STRING){
+  else if (type == STRING)
     strcpy(attrVal.sVal, strVal);
-  }
 
-  /*** Selecting records from the source relation ***/
-
-  // reset the search index to start from first hit
-  RelCacheTable::resetSearchIndex(srcRelId);
-
-  // get relation catalog entry
+  // generate the arguments to create and open target relation
   RelCatEntry relCatEntry;
-  RelCacheTable::getRelCatEntry(srcRelId, &relCatEntry);
+  RelCacheTable::getRelCatEntry(srcRelid, &relCatEntry);
 
-  /************************
-  The following code prints the contents of a relation directly to the output
-  console. Direct console output is not permitted by the actual the NITCbase
-  specification and the output can only be inserted into a new relation. We will
-  be modifying it in the later stages to match the specification.
-  ************************/
+  int srcNAttrs = relCatEntry.numAttrs;
+  char attrNames[srcNAttrs][ATTR_SIZE];
+  int attrTypes[srcNAttrs];
 
-  // print all the attributes in the relation
-  printf("|");
-  for (int i = 0; i < relCatEntry.numAttrs; ++i){
+  // iterate through all the attrcat entries and copy attrName & type
+  for(int i = 0; i < srcNAttrs; i++){
     AttrCatEntry attrCatEntry;
-    AttrCacheTable::getAttrCatEntry(srcRelId, i, &attrCatEntry);
+    AttrCacheTable::getAttrCatEntry(srcRelid, i, &attrCatEntry);
 
-    printf(" %s |", attrCatEntry.attrName);
+    strcpy(attrNames[i], attrCatEntry.attrName);
+    attrTypes[i] = attrCatEntry.attrType;
   }
-  printf("\n");
 
-  // repeatedly do linear search till no more records are found
+  // create and open target relation with appropriate arguments
+  ret = Schema::createRel(targetRel, srcNAttrs, attrNames, attrTypes);
+  if(ret != SUCCESS)
+    return ret;
+
+  int targetRelId = OpenRelTable::openRel(targetRel);
+  if(targetRelId < 0 || targetRelId >= MAX_OPEN){
+    Schema::deleteRel(targetRel);
+    return targetRelId;
+  }
+
+  
+  // BlockAccess::search() can either do linearSearch or B+ tree search
+  // reset both searchIndexes to start from first record
+  RelCacheTable::resetSearchIndex(srcRelid);
+  // AttrCacheTable::resetSearchIndex(srcRelid, attr);
+  
+  Attribute record[srcNAttrs];
+
+  // search till we find records satisfying the condition &
+  // insert the records found into target relation
   while (true){
-    RecId searchRes = BlockAccess::linearSearch(srcRelId, attr, attrVal, op);
-    
-    if (searchRes.block != -1 && searchRes.slot != -1){
-      // get the record at search result
-      RecBuffer curBlock(searchRes.block);
+    int ret = BlockAccess::search(srcRelid, record, attr, attrVal, op);
+    if(ret != SUCCESS)
+     break;
 
-      Attribute record[relCatEntry.numAttrs];
-      curBlock.getRecord(record, searchRes.slot);
+    ret = BlockAccess::insert(targetRelId, record);
 
-      // print the attribute values in the same format as above
-      for(int i = 0; i < relCatEntry.numAttrs; i++){
-        AttrCatEntry attrCatEntry;
-        AttrCacheTable::getAttrCatEntry(srcRelId, i, &attrCatEntry);
-
-        if(attrCatEntry.attrType == NUMBER){
-          printf(" %d |", static_cast<int>(record[i].nVal));
-        }
-        else {
-          printf(" %s |", record[i].sVal);
-        }
-      }
-
-      printf("\n");
-    }
-    else{
-      // (all records over)
-      break;
+    if(ret != SUCCESS){
+      Schema::closeRel(targetRel);
+      Schema::deleteRel(targetRel);
+      return ret;
     }
   }
 
+  // close target relation
+  Schema::closeRel(targetRel);
   return SUCCESS;
 }
 
-// will return if a string can be parsed as a floating point number
+
+
+int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], int tar_nAttrs, char tar_Attrs[][ATTR_SIZE]){
+  // check if the source relation is open
+  int srcRelId = OpenRelTable::getRelId(srcRel);
+  if(srcRelId == E_RELNOTOPEN)
+    return E_RELNOTOPEN;
+
+  // generate the arguments to create and open target relation
+  RelCatEntry relCatEntry;
+  RelCacheTable::getRelCatEntry(srcRelId, &relCatEntry);
+
+  int srcNAttrs = relCatEntry.numAttrs;
+  int attrOffset[tar_nAttrs]; // stores offsets of ith attr of target relation in source relation
+  int attrTypes[tar_nAttrs];
+
+  // check is attributes of target relation are present in source relation &
+  // update attrOffset and attrType, if present
+  for(int i = 0; i < tar_nAttrs; i++){
+    AttrCatEntry attrCatEntry;
+    int ret = AttrCacheTable::getAttrCatEntry(srcRelId, tar_Attrs[i], &attrCatEntry);
+
+    if(ret == E_ATTRNOTEXIST)
+      return E_ATTRNOTEXIST;
+
+    attrOffset[i] = attrCatEntry.offset;
+    attrTypes[i] = attrCatEntry.attrType;
+  }
+
+  // create and open target relation
+  int ret = Schema::createRel(targetRel, tar_nAttrs, tar_Attrs, attrTypes);
+  if(ret != SUCCESS)
+    return ret;
+
+  int targetRelId = OpenRelTable::openRel(targetRel);
+  if(targetRelId < 0 || targetRelId >= MAX_OPEN){
+    Schema::deleteRel(targetRel);
+    return targetRelId;
+  }
+
+  // reset search index to copy from the first record of the source relation
+  RelCacheTable::resetSearchIndex(srcRelId);
+
+  // iterate till a record exists in source relation &
+  // insert the subset of record into the target relation
+  Attribute record[srcNAttrs];
+  while (true){
+    int ret = BlockAccess::project(srcRelId, record);
+    if(ret != SUCCESS)
+      break;
+
+    // iterate through target attributes &
+    // copy the appropriate attributes from source to target rcd
+    Attribute projRecord[tar_nAttrs];
+    for(int i = 0; i < tar_nAttrs; i++)
+      projRecord[i] = record[attrOffset[i]];
+
+    ret = BlockAccess::insert(targetRelId, projRecord);
+
+    if (ret != SUCCESS){
+      Schema::closeRel(targetRel);
+      Schema::deleteRel(targetRel);
+      return ret;
+    }
+  }
+
+  // close the target relation
+  Schema::closeRel(targetRel);
+  return SUCCESS;
+}
+
+
+
+int Algebra::project(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE]){
+  // check is the source relation is open
+  int srcRelId = OpenRelTable::getRelId(srcRel);
+  if(srcRelId == E_RELNOTOPEN)
+    return E_RELNOTOPEN;
+
+  // generate arguments to create and open target relation
+  RelCatEntry relCatEntry;
+  RelCacheTable::getRelCatEntry(srcRelId, &relCatEntry);
+
+  int numAttrs = relCatEntry.numAttrs;
+  char attrNames[numAttrs][ATTR_SIZE];
+  int attrTypes[numAttrs];
+
+  // iterate through every attribute of source relation &
+  // copy attribute name and attribute type
+  for(int i = 0; i < numAttrs; i++){
+    AttrCatEntry attrCatEntry;
+    AttrCacheTable::getAttrCatEntry(srcRelId, i, &attrCatEntry);
+
+    strcpy(attrNames[i], attrCatEntry.attrName);
+    attrTypes[i] = attrCatEntry.attrType;
+  }
+
+  // create and open target relation
+  int ret = Schema::createRel(targetRel, numAttrs, attrNames, attrTypes);
+  if(ret != SUCCESS)
+    return ret;
+
+  int targetRelId = OpenRelTable::openRel(targetRel);
+  if (targetRelId < 0 || targetRelId >= MAX_OPEN){
+    Schema::deleteRel(targetRel);
+    return targetRelId;
+  }
+
+  // reset search index to copy from the first record of the source relation
+  RelCacheTable::resetSearchIndex(srcRelId);
+
+  // iterate till a record exists in source relation &
+  // insert the record into the target relation
+  Attribute record[numAttrs];
+  while (true){
+    int ret = BlockAccess::project(srcRelId, record);
+    if(ret != SUCCESS)
+      break;
+
+    ret = BlockAccess::insert(targetRelId, record);
+
+    if (ret != SUCCESS){
+      Schema::closeRel(targetRel);
+      Schema::deleteRel(targetRel);
+      return ret;
+    }
+  }
+
+  // close the target relation
+  Schema::closeRel(targetRel);
+  return SUCCESS;
+}
+
+
+
+// to check if the string can be parsed as floating point integer
 bool isNumber(char *str){
   int len;
   float ignore;
-  /*
-    sscanf returns the number of elements read, so if there is no float matching
-    the first %f, ret will be 0, else it'll be 1
 
-    %n gets the number of characters read. this scanf sequence will read the
-    first float ignoring all the whitespace before and after. and the number of
-    characters read that far will be stored in len. if len == strlen(str), then
-    the string only contains a float with/without whitespace. else, there's other
-    characters.
-  */
+  // sscanf returns the number of elements read
+  // returns 0 if no float matching else 1
+  // only reads the first float ignoring whitespaces
   int ret = sscanf(str, "%f %n", &ignore, &len);
+
+  // len == strlen(str) is used to check whether the string contains whitespaces
   return ret == 1 && len == strlen(str);
 }

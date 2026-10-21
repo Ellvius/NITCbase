@@ -44,6 +44,16 @@ StaticBuffer::~StaticBuffer(){
 
 
 
+int StaticBuffer::getStaticBlockType(int blockNum){
+  if (blockNum < 0 || blockNum >= DISK_BLOCKS)
+    return E_OUTOFBOUND;
+
+  // return the block type after type casting to integer.
+  return (int)StaticBuffer::blockAllocMap[blockNum];
+}
+
+
+
 int StaticBuffer::setDirtyBit(int blockNum){
   int bufferNum = getBufferNum(blockNum);
 
@@ -62,7 +72,7 @@ int StaticBuffer::setDirtyBit(int blockNum){
 
 
 int StaticBuffer::getBufferNum(int blockNum){
-  if (blockNum < 0 || blockNum > DISK_BLOCKS)
+  if (blockNum < 0 || blockNum >= DISK_BLOCKS)
     return E_OUTOFBOUND;
 
   for (int bufIndex = 0; bufIndex < BUFFER_CAPACITY; bufIndex++){
@@ -76,7 +86,7 @@ int StaticBuffer::getBufferNum(int blockNum){
 
 
 int StaticBuffer::getFreeBuffer(int blockNum){
-  if(blockNum < 0 || blockNum > DISK_BLOCKS)
+  if(blockNum < 0 || blockNum >= DISK_BLOCKS)
     return E_OUTOFBOUND;
 
   // increase the timestamp of all occupied buffers

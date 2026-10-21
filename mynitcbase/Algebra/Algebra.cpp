@@ -58,8 +58,8 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   // check whether the given attribute exists
   AttrCatEntry attrCatEntry;
   int ret = AttrCacheTable::getAttrCatEntry(srcRelid, attr, &attrCatEntry);
-  if(ret == E_ATTRNOTEXIST)
-    return E_ATTRNOTEXIST;
+  if(ret != SUCCESS)
+    return ret;
 
   // convert strVal to Attribute of appropriate type
   Attribute attrVal;
@@ -106,7 +106,7 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   // BlockAccess::search() can either do linearSearch or B+ tree search
   // reset both searchIndexes to start from first record
   RelCacheTable::resetSearchIndex(srcRelid);
-  // AttrCacheTable::resetSearchIndex(srcRelid, attr);
+  AttrCacheTable::resetSearchIndex(srcRelid, attr);
   
   Attribute record[srcNAttrs];
 

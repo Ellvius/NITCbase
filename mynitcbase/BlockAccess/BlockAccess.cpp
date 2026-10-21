@@ -97,9 +97,21 @@ RecId BlockAccess::linearSearch(int relId, char attrName[ATTR_SIZE], union Attri
 
 
 int BlockAccess::search(int relId, Attribute *record, char attrName[ATTR_SIZE], Attribute attrVal, int op){
-  // search for the record id using linear search
-  RecId recId = linearSearch(relId, attrName, attrVal, op);
+  // get the attribute catalog entry of the attribute to get rootblock
+  AttrCatEntry attrCatEntry;
+  int ret = AttrCacheTable::getAttrCatEntry(relId, attrName, &attrCatEntry);
+  if(ret != SUCCESS)
+    return ret;
+  
+  // if index does not exists => rootBlock is -1, do linearSearch
+  // otherwise do BplusSearch
+  RecId recId;
+  if (attrCatEntry.rootBlock == -1)
+    recId = linearSearch(relId, attrName, attrVal, op);
+  else 
+    recId = BPlusTree::bPlusSearch(relId, attrName, attrVal, op);
 
+  // if no record satisfying the given condition is found
   if (recId.block == -1 && recId.slot == -1)
     return E_NOTFOUND;
 

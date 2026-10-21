@@ -5,7 +5,7 @@
 
 // Helper function to compare the attributes with attribute Tyep
 int compareAttrs(Attribute attr1, Attribute attr2, int attrType){
-
+  StaticBuffer::compNums++;
   if(attrType == NUMBER){
     if (attr1.nVal < attr2.nVal)
       return -1;

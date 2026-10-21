@@ -26,6 +26,7 @@ class StaticBuffer {
 
  public:
   // methods
+  static int compNums;
   static int getStaticBlockType(int blockNum);
   static int setDirtyBit(int blockNum);
   StaticBuffer();

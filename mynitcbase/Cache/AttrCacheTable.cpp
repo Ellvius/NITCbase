@@ -46,6 +46,48 @@ int AttrCacheTable::getAttrCatEntry(int relId, int attrOffset, AttrCatEntry* att
 
 
 
+int AttrCacheTable::setAttrCatEntry(int relId, char attrName[ATTR_SIZE], AttrCatEntry *attrCatBuf){
+  // check relation id and if relation is open
+  if (relId < 0 || relId >= MAX_OPEN)
+    return E_OUTOFBOUND;
+
+  if (attrCache[relId] == nullptr)
+    return E_RELNOTOPEN;
+
+  // find the attribute cache entry with attrName
+  for (AttrCacheEntry *entry = attrCache[relId]; entry != nullptr; entry = entry->next){
+    if (strcmp(entry->attrCatEntry.attrName, attrName) == 0){
+      entry->attrCatEntry = *attrCatBuf;
+      entry->dirty = true;
+      return SUCCESS;
+    }
+  }
+
+  return E_ATTRNOTEXIST;
+}
+
+int AttrCacheTable::setAttrCatEntry(int relId, int attrOffset, AttrCatEntry *attrCatBuf){
+  // check relation id and if relation is open
+  if (relId < 0 || relId >= MAX_OPEN)
+    return E_OUTOFBOUND;
+
+  if (attrCache[relId] == nullptr)
+    return E_RELNOTOPEN;
+
+  // find the attribute cache entry with attrOffset
+  for (AttrCacheEntry *entry = attrCache[relId]; entry != nullptr; entry = entry->next){
+    if (entry->attrCatEntry.offset == attrOffset){
+      entry->attrCatEntry = *attrCatBuf;
+      entry->dirty = true;
+      return SUCCESS;
+    }
+  }
+
+  return E_ATTRNOTEXIST;
+}
+
+
+
 int AttrCacheTable::getSearchIndex(int relId, char attrName[ATTR_SIZE], IndexId *searchIndex){
   // check relation id and if relation is open
   if (relId < 0 || relId >= MAX_OPEN)
@@ -146,4 +188,16 @@ AttrCatEntry *attrCatEntry){
   attrCatEntry->primaryFlag = (bool)record[ATTRCAT_PRIMARY_FLAG_INDEX].nVal;
   attrCatEntry->rootBlock = (int)record[ATTRCAT_ROOT_BLOCK_INDEX].nVal;
   attrCatEntry->offset = (int)record[ATTRCAT_OFFSET_INDEX].nVal;
+}
+
+
+
+void AttrCacheTable::attrCatEntryToRecord(AttrCatEntry *attrCatEntry,
+union Attribute record[ATTRCAT_NO_ATTRS]){
+  strcpy(record[ATTRCAT_REL_NAME_INDEX].sVal, attrCatEntry->relName);
+  strcpy(record[ATTRCAT_ATTR_NAME_INDEX].sVal, attrCatEntry->attrName);
+  record[ATTRCAT_ATTR_TYPE_INDEX].nVal = attrCatEntry->attrType;
+  record[ATTRCAT_PRIMARY_FLAG_INDEX].nVal =attrCatEntry->primaryFlag;
+  record[ATTRCAT_ROOT_BLOCK_INDEX].nVal = attrCatEntry->rootBlock;
+  record[ATTRCAT_OFFSET_INDEX].nVal = attrCatEntry->offset;
 }

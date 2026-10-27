@@ -5,7 +5,6 @@ unsigned char StaticBuffer::blocks[BUFFER_CAPACITY][BLOCK_SIZE];
 struct BufferMetaInfo StaticBuffer::metainfo[BUFFER_CAPACITY];
 
 unsigned char StaticBuffer::blockAllocMap[DISK_BLOCKS];
-int StaticBuffer::compNums;
 
 
 StaticBuffer::StaticBuffer(){

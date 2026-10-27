@@ -107,7 +107,7 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
   // reset both searchIndexes to start from first record
   RelCacheTable::resetSearchIndex(srcRelid);
   AttrCacheTable::resetSearchIndex(srcRelid, attr);
-  StaticBuffer::compNums = 0;
+
   Attribute record[srcNAttrs];
 
   // search till we find records satisfying the condition &
@@ -128,7 +128,6 @@ int Algebra::select(char srcRel[ATTR_SIZE], char targetRel[ATTR_SIZE], char attr
 
   // close target relation
   Schema::closeRel(targetRel);
-  std::cout<<StaticBuffer::compNums<<std::endl;
   return SUCCESS;
 }
 
